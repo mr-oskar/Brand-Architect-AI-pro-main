@@ -1,0 +1,8 @@
+# Ignore local uploaded files (runtime storage)
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.meta
+*.gif
+!.gitignore
