@@ -1,0 +1,747 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: AI Brand & Marketing OS API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: brands
+    description: Brand project operations
+  - name: campaigns
+    description: Campaign operations
+  - name: posts
+    description: Social post operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /brands:
+    get:
+      operationId: listBrands
+      tags: [brands]
+      summary: List all brand projects
+      responses:
+        "200":
+          description: List of brands
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BrandSummary"
+    post:
+      operationId: createBrand
+      tags: [brands]
+      summary: Create a new brand project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBrandBody"
+      responses:
+        "201":
+          description: Brand created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Brand"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /brands/{id}:
+    get:
+      operationId: getBrand
+      tags: [brands]
+      summary: Get a brand project by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Brand found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Brand"
+        "404":
+          description: Brand not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateBrand
+      tags: [brands]
+      summary: Update a brand project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBrandBody"
+      responses:
+        "200":
+          description: Brand updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Brand"
+        "404":
+          description: Brand not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteBrand
+      tags: [brands]
+      summary: Delete a brand project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Brand deleted
+        "404":
+          description: Brand not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /brands/{id}/generate-kit:
+    post:
+      operationId: generateBrandKit
+      tags: [brands]
+      summary: Run AI to generate brand kit (personality, palette, tone, positioning)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateBrandKitBody"
+      responses:
+        "200":
+          description: Brand kit generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Brand"
+        "404":
+          description: Brand not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /brands/{id}/generate-campaign:
+    post:
+      operationId: generateCampaign
+      tags: [brands]
+      summary: Run AI to generate 7-day campaign and social posts
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateCampaignBody"
+      responses:
+        "200":
+          description: Campaign generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campaign"
+        "404":
+          description: Brand not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /brands/{id}/campaigns:
+    get:
+      operationId: listCampaigns
+      tags: [campaigns]
+      summary: List campaigns for a brand
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of campaigns
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Campaign"
+
+  /campaigns/{id}:
+    get:
+      operationId: getCampaign
+      tags: [campaigns]
+      summary: Get a campaign by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Campaign found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campaign"
+        "404":
+          description: Campaign not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /posts/{id}:
+    get:
+      operationId: getPost
+      tags: [posts]
+      summary: Get a social post by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Post found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SocialPost"
+        "404":
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updatePost
+      tags: [posts]
+      summary: Update a social post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePostBody"
+      responses:
+        "200":
+          description: Post updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SocialPost"
+        "404":
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /posts/{id}/generate-image:
+    post:
+      operationId: generatePostImage
+      tags: [posts]
+      summary: Generate an AI image for a post using its imagePrompt
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GeneratePostImageBody"
+      responses:
+        "200":
+          description: Image generated and saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SocialPost"
+        "404":
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /posts/{id}/regenerate:
+    post:
+      operationId: regeneratePost
+      tags: [posts]
+      summary: Regenerate AI content for a post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Post regenerated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SocialPost"
+        "404":
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /brands/{id}/stats:
+    get:
+      operationId: getBrandStats
+      tags: [brands]
+      summary: Get aggregated stats for a brand (campaigns, posts, completion)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Brand statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrandStats"
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [brands]
+      summary: Get dashboard overview — total brands, campaigns, recent activity
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    ColorPalette:
+      type: object
+      properties:
+        primary:
+          type: string
+        secondary:
+          type: string
+        accent:
+          type: string
+        background:
+          type: string
+        text:
+          type: string
+      required:
+        - primary
+        - secondary
+        - accent
+        - background
+        - text
+
+    BrandKit:
+      type: object
+      properties:
+        personality:
+          type: string
+        positioning:
+          type: string
+        toneOfVoice:
+          type: string
+        audienceSegments:
+          type: array
+          items:
+            type: string
+        visualStyle:
+          type: string
+        colorPalette:
+          $ref: "#/components/schemas/ColorPalette"
+        visualStyleRules:
+          type: string
+      required:
+        - personality
+        - positioning
+        - toneOfVoice
+        - audienceSegments
+        - visualStyle
+        - colorPalette
+        - visualStyleRules
+
+    BrandSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        companyName:
+          type: string
+        industry:
+          type: string
+        logoUrl:
+          type: ["string", "null"]
+        status:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - companyName
+        - industry
+        - status
+        - createdAt
+        - updatedAt
+
+    Brand:
+      type: object
+      properties:
+        id:
+          type: integer
+        companyName:
+          type: string
+        companyDescription:
+          type: string
+        industry:
+          type: string
+        websiteUrl:
+          type: ["string", "null"]
+        logoUrl:
+          type: ["string", "null"]
+        status:
+          type: string
+        brandKit:
+          oneOf:
+            - $ref: "#/components/schemas/BrandKit"
+            - type: "null"
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - companyName
+        - companyDescription
+        - industry
+        - status
+        - createdAt
+        - updatedAt
+
+    GenerateBrandKitBody:
+      type: object
+      properties:
+        brandColors:
+          type: array
+          items:
+            type: string
+          description: Extracted hex colors from the uploaded logo
+
+    GenerateCampaignBody:
+      type: object
+      properties:
+        brief:
+          type: string
+          description: User instructions for the campaign (tone, goals, style, target)
+        referenceImages:
+          type: array
+          items:
+            type: string
+          description: Base64 data URLs of reference images to inspire visuals
+        postCount:
+          type: integer
+          minimum: 1
+          maximum: 14
+          description: Number of posts to generate (defaults to 7)
+
+    CreateBrandBody:
+      type: object
+      properties:
+        companyName:
+          type: string
+        companyDescription:
+          type: string
+        industry:
+          type: string
+        websiteUrl:
+          type: ["string", "null"]
+        logoUrl:
+          type: ["string", "null"]
+        brandColors:
+          type: array
+          items:
+            type: string
+          description: Extracted hex colors from the uploaded logo
+      required:
+        - companyName
+        - companyDescription
+        - industry
+
+    UpdateBrandBody:
+      type: object
+      properties:
+        companyName:
+          type: string
+        companyDescription:
+          type: string
+        industry:
+          type: string
+        websiteUrl:
+          type: ["string", "null"]
+        logoUrl:
+          type: ["string", "null"]
+
+    CampaignDay:
+      type: object
+      properties:
+        day:
+          type: integer
+        objective:
+          type: string
+        postConcept:
+          type: string
+        marketingAngle:
+          type: string
+        cta:
+          type: string
+      required:
+        - day
+        - objective
+        - postConcept
+        - marketingAngle
+        - cta
+
+    SocialPost:
+      type: object
+      properties:
+        id:
+          type: integer
+        campaignId:
+          type: integer
+        day:
+          type: integer
+        caption:
+          type: string
+        hook:
+          type: string
+        cta:
+          type: string
+        hashtags:
+          type: array
+          items:
+            type: string
+        imagePrompt:
+          type: string
+        imageUrl:
+          type: ["string", "null"]
+          description: Base64 data URL of the AI-generated image
+        platform:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - campaignId
+        - day
+        - caption
+        - hook
+        - cta
+        - hashtags
+        - imagePrompt
+        - platform
+        - createdAt
+        - updatedAt
+
+    UpdatePostBody:
+      type: object
+      properties:
+        caption:
+          type: string
+        hook:
+          type: string
+        cta:
+          type: string
+        hashtags:
+          type: array
+          items:
+            type: string
+        imagePrompt:
+          type: string
+        platform:
+          type: string
+
+    GeneratePostImageBody:
+      type: object
+      properties:
+        customPrompt:
+          type: string
+          description: Custom image prompt from the user (overrides the post imagePrompt)
+        size:
+          type: string
+          enum: ["256x256", "512x512", "1024x1024"]
+          description: Image output size
+        model:
+          type: string
+          enum: ["nano", "mini", "pro"]
+          description: AI model quality for prompt enhancement
+
+    Campaign:
+      type: object
+      properties:
+        id:
+          type: integer
+        brandId:
+          type: integer
+        title:
+          type: string
+        strategy:
+          type: string
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/CampaignDay"
+        posts:
+          type: array
+          items:
+            $ref: "#/components/schemas/SocialPost"
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - brandId
+        - title
+        - strategy
+        - days
+        - posts
+        - createdAt
+        - updatedAt
+
+    BrandStats:
+      type: object
+      properties:
+        brandId:
+          type: integer
+        totalCampaigns:
+          type: integer
+        totalPosts:
+          type: integer
+        brandKitGenerated:
+          type: boolean
+        lastCampaignDate:
+          type: ["string", "null"]
+      required:
+        - brandId
+        - totalCampaigns
+        - totalPosts
+        - brandKitGenerated
+
+    DashboardSummary:
+      type: object
+      properties:
+        totalBrands:
+          type: integer
+        totalCampaigns:
+          type: integer
+        totalPosts:
+          type: integer
+        recentBrands:
+          type: array
+          items:
+            $ref: "#/components/schemas/BrandSummary"
+      required:
+        - totalBrands
+        - totalCampaigns
+        - totalPosts
+        - recentBrands
