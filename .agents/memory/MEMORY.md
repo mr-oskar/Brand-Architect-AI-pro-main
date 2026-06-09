@@ -1,0 +1,1 @@
+- [Python FastAPI backend](python-fastapi-backend.md) — api-server converted to Python; TS server preserved for reference but Python owns port 8080.
