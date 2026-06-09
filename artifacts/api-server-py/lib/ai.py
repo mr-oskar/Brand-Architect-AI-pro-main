@@ -790,3 +790,282 @@ Return ONLY the updated Fabric.js JSON canvas object with the instruction applie
         return _parse_json_response(resp.choices[0].message.content or "")
     except Exception:
         return canvas_json
+
+
+# ── Brand Book Generation ─────────────────────────────────────────────────────
+
+A4_W = 794
+A4_H = 1123
+IVORY = "#FFFFF0"
+INK = "#1a1a2e"
+INK_SOFT = "#3a3a52"
+
+
+def _hex_to_rgb(hex_color: str) -> str:
+    h = hex_color.lstrip("#")
+    if len(h) != 6:
+        return "26, 26, 46"
+    r = int(h[0:2], 16)
+    g = int(h[2:4], 16)
+    b = int(h[4:6], 16)
+    return f"{r}, {g}, {b}"
+
+
+def _generate_book_content(input_data: dict) -> dict:
+    client = get_client()
+    company = input_data.get("companyName", "")
+    industry = input_data.get("industry", "")
+    tagline = input_data.get("tagline", "")
+    mission = input_data.get("mission", "")
+    personality = ", ".join(input_data.get("personality") or ["Futuristic", "Minimal", "Intelligent"])
+    palette = input_data.get("palette", {})
+    fonts = input_data.get("fonts", {})
+
+    prompt = f"""You are a senior brand strategist writing a professional brand book for {company} ({industry}).
+
+Tagline: {tagline}
+Mission: {mission}
+Brand personality: {personality}
+Primary color: {palette.get("primary", "#6366f1")}
+Heading font: {fonts.get("heading", "Georgia")}
+Body font: {fonts.get("body", "Inter")}
+
+Write professional, specific brand book content. Return ONLY JSON:
+{{
+  "cover": {{"tagline": "evocative 5-8 word brand tagline", "footer": "brief company descriptor"}},
+  "overview": {{"personality": "2 sentences brand personality", "audience": "primary audience description", "tone": "tone of voice summary", "mission": "mission statement"}},
+  "logo": {{"intro": "2 sentences logo design rationale", "clearSpace": "clear space rule description", "minSize": "minimum size guideline"}},
+  "color": {{"intro": "2 sentences color palette rationale", "psychology": {{"primary": "primary color meaning", "secondary": "secondary color meaning", "accent": "accent color meaning", "neutral": "neutral usage note"}}}},
+  "typography": {{"intro": "2 sentences typography rationale", "headingDesc": "heading font usage note", "bodyDesc": "body font usage note"}},
+  "ui": {{"intro": "2 sentences UI/digital design principles"}},
+  "visual": {{"iconStyle": "icon design style note", "pattern": "pattern/texture usage note", "imagery": "photography/imagery guidelines"}},
+  "rules": {{"dos": ["Do: specific rule 1", "Do: specific rule 2", "Do: specific rule 3"], "donts": ["Don't: specific rule 1", "Don't: specific rule 2", "Don't: specific rule 3"]}}
+}}"""
+
+    try:
+        resp = client.chat.completions.create(
+            model=TEXT_MODEL,
+            max_completion_tokens=3000,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return _parse_json_response(resp.choices[0].message.content or "")
+    except Exception:
+        return {
+            "cover": {"tagline": tagline, "footer": f"{company} — {industry}"},
+            "overview": {"personality": personality, "audience": "Modern professionals", "tone": "Professional and engaging", "mission": mission or f"Empowering {industry} excellence"},
+            "logo": {"intro": f"The {company} logo represents clarity and vision.", "clearSpace": "Maintain clear space equal to the cap-height of the logo.", "minSize": "Never reproduce smaller than 24px height."},
+            "color": {"intro": "Our palette communicates trust and modernity.", "psychology": {"primary": "Confidence and leadership", "secondary": "Depth and reliability", "accent": "Energy and action", "neutral": "Balance and clarity"}},
+            "typography": {"intro": "Our typefaces pair tradition with modernity.", "headingDesc": f"{fonts.get('heading', 'Georgia')} — authoritative and refined", "bodyDesc": f"{fonts.get('body', 'Inter')} — clear and accessible"},
+            "ui": {"intro": "Digital experiences are clean, purposeful, and brand-forward."},
+            "visual": {"iconStyle": "Geometric, minimal, consistent stroke weight", "pattern": "Subtle brand-color geometry on white or surface backgrounds", "imagery": "Natural light, authentic moments, purposeful composition"},
+            "rules": {"dos": ["Do: Use brand colors consistently", "Do: Maintain generous white space", "Do: Lead with the logo in communications"], "donts": ["Don't: Distort or recolor the logo", "Don't: Use low-contrast color combinations", "Don't: Mix more than 3 typefaces"]},
+        }
+
+
+def _make_cover_page(inp: dict, content: dict) -> dict:
+    p = inp.get("palette", {})
+    primary = p.get("primary", "#6366f1")
+    bg = p.get("background", IVORY)
+    text_col = p.get("text", INK)
+    company = inp.get("companyName", "Brand")
+    logo_url = inp.get("logoUrl")
+    cover = content.get("cover", {})
+    font_h = inp.get("fonts", {}).get("heading", "Georgia")
+
+    objects = [
+        {"type": "rect", "left": 0, "top": 0, "width": A4_W, "height": A4_H, "fill": bg, "selectable": False},
+        {"type": "rect", "left": 0, "top": 0, "width": 8, "height": A4_H, "fill": primary, "selectable": False},
+        {"type": "rect", "left": 0, "top": A4_H - 120, "width": A4_W, "height": 120, "fill": primary, "selectable": False},
+    ]
+    if logo_url:
+        objects.append({"type": "image", "src": logo_url, "left": A4_W // 2 - 60, "top": 300, "width": 120, "height": 120, "selectable": False})
+    objects += [
+        {"type": "text", "text": company.upper(), "left": A4_W // 2, "top": 460, "width": 600, "fontSize": 52, "fontFamily": font_h, "fontWeight": "bold", "fill": text_col, "textAlign": "center", "originX": "center", "selectable": False},
+        {"type": "text", "text": "BRAND IDENTITY GUIDELINES", "left": A4_W // 2, "top": 530, "width": 600, "fontSize": 14, "fontFamily": "Inter", "fontWeight": "normal", "fill": INK_SOFT, "textAlign": "center", "originX": "center", "charSpacing": 300, "selectable": False},
+        {"type": "text", "text": cover.get("tagline", inp.get("tagline", "")), "left": A4_W // 2, "top": 620, "width": 580, "fontSize": 18, "fontFamily": font_h, "fontStyle": "italic", "fill": INK_SOFT, "textAlign": "center", "originX": "center", "selectable": False},
+        {"type": "text", "text": cover.get("footer", ""), "left": A4_W // 2, "top": A4_H - 80, "width": 600, "fontSize": 12, "fontFamily": "Inter", "fill": "#ffffff", "textAlign": "center", "originX": "center", "selectable": False},
+    ]
+    return {"background": bg, "objects": objects, "aiSpec": True}
+
+
+def _make_overview_page(inp: dict, content: dict) -> dict:
+    p = inp.get("palette", {})
+    primary = p.get("primary", "#6366f1")
+    bg = p.get("background", IVORY)
+    text_col = p.get("text", INK)
+    font_h = inp.get("fonts", {}).get("heading", "Georgia")
+    font_b = inp.get("fonts", {}).get("body", "Inter")
+    ov = content.get("overview", {})
+
+    objects = [
+        {"type": "rect", "left": 0, "top": 0, "width": A4_W, "height": A4_H, "fill": bg, "selectable": False},
+        {"type": "rect", "left": 0, "top": 0, "width": A4_W, "height": 80, "fill": primary, "selectable": False},
+        {"type": "text", "text": "BRAND OVERVIEW", "left": 40, "top": 25, "width": 600, "fontSize": 24, "fontFamily": font_h, "fontWeight": "bold", "fill": "#ffffff", "selectable": False},
+        {"type": "text", "text": "Brand Personality", "left": 40, "top": 120, "width": 400, "fontSize": 16, "fontFamily": font_h, "fontWeight": "bold", "fill": text_col, "selectable": False},
+        {"type": "text", "text": ov.get("personality", ""), "left": 40, "top": 145, "width": 700, "fontSize": 13, "fontFamily": font_b, "fill": INK_SOFT, "selectable": False},
+        {"type": "rect", "left": 40, "top": 220, "width": A4_W - 80, "height": 1, "fill": primary, "opacity": 0.3, "selectable": False},
+        {"type": "text", "text": "Target Audience", "left": 40, "top": 240, "width": 400, "fontSize": 16, "fontFamily": font_h, "fontWeight": "bold", "fill": text_col, "selectable": False},
+        {"type": "text", "text": ov.get("audience", ""), "left": 40, "top": 265, "width": 700, "fontSize": 13, "fontFamily": font_b, "fill": INK_SOFT, "selectable": False},
+        {"type": "rect", "left": 40, "top": 340, "width": A4_W - 80, "height": 1, "fill": primary, "opacity": 0.3, "selectable": False},
+        {"type": "text", "text": "Tone of Voice", "left": 40, "top": 360, "width": 400, "fontSize": 16, "fontFamily": font_h, "fontWeight": "bold", "fill": text_col, "selectable": False},
+        {"type": "text", "text": ov.get("tone", ""), "left": 40, "top": 385, "width": 700, "fontSize": 13, "fontFamily": font_b, "fill": INK_SOFT, "selectable": False},
+        {"type": "rect", "left": 40, "top": 460, "width": A4_W - 80, "height": 1, "fill": primary, "opacity": 0.3, "selectable": False},
+        {"type": "text", "text": "Mission Statement", "left": 40, "top": 480, "width": 400, "fontSize": 16, "fontFamily": font_h, "fontWeight": "bold", "fill": text_col, "selectable": False},
+        {"type": "text", "text": ov.get("mission", ""), "left": 40, "top": 505, "width": 700, "fontSize": 13, "fontFamily": font_b, "fill": INK_SOFT, "selectable": False},
+    ]
+    return {"background": bg, "objects": objects, "aiSpec": True}
+
+
+def _make_logo_page(inp: dict, content: dict) -> dict:
+    p = inp.get("palette", {})
+    primary = p.get("primary", "#6366f1")
+    bg = p.get("background", IVORY)
+    text_col = p.get("text", INK)
+    font_h = inp.get("fonts", {}).get("heading", "Georgia")
+    font_b = inp.get("fonts", {}).get("body", "Inter")
+    logo_url = inp.get("logoUrl")
+    variants = inp.get("logoVariants") or {}
+    lc = content.get("logo", {})
+
+    objects = [
+        {"type": "rect", "left": 0, "top": 0, "width": A4_W, "height": A4_H, "fill": bg, "selectable": False},
+        {"type": "rect", "left": 0, "top": 0, "width": A4_W, "height": 80, "fill": primary, "selectable": False},
+        {"type": "text", "text": "LOGO SYSTEM", "left": 40, "top": 25, "width": 600, "fontSize": 24, "fontFamily": font_h, "fontWeight": "bold", "fill": "#ffffff", "selectable": False},
+        {"type": "text", "text": lc.get("intro", ""), "left": 40, "top": 110, "width": 700, "fontSize": 13, "fontFamily": font_b, "fill": INK_SOFT, "selectable": False},
+    ]
+    if logo_url:
+        objects.append({"type": "image", "src": logo_url, "left": A4_W // 2 - 80, "top": 180, "width": 160, "height": 160, "selectable": False})
+    black_url = variants.get("black") or logo_url
+    white_url = variants.get("white") or logo_url
+    gray_url = variants.get("grayscale") or logo_url
+    if black_url:
+        objects.append({"type": "image", "src": black_url, "left": 80, "top": 420, "width": 100, "height": 100, "selectable": False})
+        objects.append({"type": "text", "text": "Black", "left": 130, "top": 530, "fontSize": 11, "fontFamily": font_b, "fill": INK_SOFT, "textAlign": "center", "originX": "center", "selectable": False})
+    if white_url:
+        objects.append({"type": "rect", "left": 260, "top": 410, "width": 120, "height": 120, "fill": primary, "selectable": False})
+        objects.append({"type": "image", "src": white_url, "left": 270, "top": 420, "width": 100, "height": 100, "selectable": False})
+        objects.append({"type": "text", "text": "Reversed", "left": 320, "top": 540, "fontSize": 11, "fontFamily": font_b, "fill": INK_SOFT, "textAlign": "center", "originX": "center", "selectable": False})
+    objects += [
+        {"type": "text", "text": "Clear Space", "left": 40, "top": 620, "width": 400, "fontSize": 14, "fontFamily": font_h, "fontWeight": "bold", "fill": text_col, "selectable": False},
+        {"type": "text", "text": lc.get("clearSpace", ""), "left": 40, "top": 642, "width": 700, "fontSize": 12, "fontFamily": font_b, "fill": INK_SOFT, "selectable": False},
+        {"type": "text", "text": "Minimum Size", "left": 40, "top": 700, "width": 400, "fontSize": 14, "fontFamily": font_h, "fontWeight": "bold", "fill": text_col, "selectable": False},
+        {"type": "text", "text": lc.get("minSize", ""), "left": 40, "top": 722, "width": 700, "fontSize": 12, "fontFamily": font_b, "fill": INK_SOFT, "selectable": False},
+    ]
+    return {"background": bg, "objects": objects, "aiSpec": True}
+
+
+def _make_color_page(inp: dict, content: dict) -> dict:
+    p = inp.get("palette", {})
+    primary = p.get("primary", "#6366f1")
+    secondary = p.get("secondary", "#8b5cf6")
+    accent = p.get("accent", "#e94560")
+    neutral = p.get("neutral", "#6B7280")
+    bg = p.get("background", IVORY)
+    text_col = p.get("text", INK)
+    font_h = inp.get("fonts", {}).get("heading", "Georgia")
+    font_b = inp.get("fonts", {}).get("body", "Inter")
+    cc = content.get("color", {})
+    psych = cc.get("psychology", {})
+
+    swatches = [
+        (primary, "Primary", psych.get("primary", "")),
+        (secondary, "Secondary", psych.get("secondary", "")),
+        (accent, "Accent", psych.get("accent", "")),
+        (neutral, "Neutral", psych.get("neutral", "")),
+    ]
+
+    objects = [
+        {"type": "rect", "left": 0, "top": 0, "width": A4_W, "height": A4_H, "fill": bg, "selectable": False},
+        {"type": "rect", "left": 0, "top": 0, "width": A4_W, "height": 80, "fill": primary, "selectable": False},
+        {"type": "text", "text": "COLOR PALETTE", "left": 40, "top": 25, "width": 600, "fontSize": 24, "fontFamily": font_h, "fontWeight": "bold", "fill": "#ffffff", "selectable": False},
+        {"type": "text", "text": cc.get("intro", ""), "left": 40, "top": 110, "width": 700, "fontSize": 13, "fontFamily": font_b, "fill": INK_SOFT, "selectable": False},
+    ]
+
+    for i, (color, name, desc) in enumerate(swatches):
+        x = 40 + i * 170
+        y = 180
+        objects += [
+            {"type": "rect", "left": x, "top": y, "width": 150, "height": 150, "fill": color, "rx": 8, "selectable": False},
+            {"type": "text", "text": name, "left": x, "top": y + 160, "width": 150, "fontSize": 13, "fontFamily": font_h, "fontWeight": "bold", "fill": text_col, "selectable": False},
+            {"type": "text", "text": color, "left": x, "top": y + 178, "width": 150, "fontSize": 11, "fontFamily": "Inter", "fill": INK_SOFT, "selectable": False},
+            {"type": "text", "text": desc, "left": x, "top": y + 196, "width": 150, "fontSize": 10, "fontFamily": font_b, "fill": INK_SOFT, "selectable": False},
+        ]
+
+    return {"background": bg, "objects": objects, "aiSpec": True}
+
+
+def _make_typography_page(inp: dict, content: dict) -> dict:
+    p = inp.get("palette", {})
+    primary = p.get("primary", "#6366f1")
+    bg = p.get("background", IVORY)
+    text_col = p.get("text", INK)
+    font_h = inp.get("fonts", {}).get("heading", "Georgia")
+    font_b = inp.get("fonts", {}).get("body", "Inter")
+    tc = content.get("typography", {})
+
+    objects = [
+        {"type": "rect", "left": 0, "top": 0, "width": A4_W, "height": A4_H, "fill": bg, "selectable": False},
+        {"type": "rect", "left": 0, "top": 0, "width": A4_W, "height": 80, "fill": primary, "selectable": False},
+        {"type": "text", "text": "TYPOGRAPHY", "left": 40, "top": 25, "width": 600, "fontSize": 24, "fontFamily": font_h, "fontWeight": "bold", "fill": "#ffffff", "selectable": False},
+        {"type": "text", "text": tc.get("intro", ""), "left": 40, "top": 110, "width": 700, "fontSize": 13, "fontFamily": font_b, "fill": INK_SOFT, "selectable": False},
+        {"type": "text", "text": "Heading Typeface", "left": 40, "top": 165, "width": 400, "fontSize": 14, "fontFamily": font_h, "fontWeight": "bold", "fill": text_col, "selectable": False},
+        {"type": "text", "text": font_h, "left": 40, "top": 195, "width": 680, "fontSize": 48, "fontFamily": font_h, "fontWeight": "bold", "fill": text_col, "selectable": False},
+        {"type": "text", "text": "Aa Bb Cc Dd Ee Ff Gg Hh Ii Jj Kk Ll Mm", "left": 40, "top": 255, "width": 680, "fontSize": 18, "fontFamily": font_h, "fill": INK_SOFT, "selectable": False},
+        {"type": "text", "text": tc.get("headingDesc", ""), "left": 40, "top": 290, "width": 680, "fontSize": 12, "fontFamily": font_b, "fill": INK_SOFT, "selectable": False},
+        {"type": "rect", "left": 40, "top": 340, "width": A4_W - 80, "height": 1, "fill": primary, "opacity": 0.3, "selectable": False},
+        {"type": "text", "text": "Body Typeface", "left": 40, "top": 360, "width": 400, "fontSize": 14, "fontFamily": font_h, "fontWeight": "bold", "fill": text_col, "selectable": False},
+        {"type": "text", "text": font_b, "left": 40, "top": 390, "width": 680, "fontSize": 36, "fontFamily": font_b, "fill": text_col, "selectable": False},
+        {"type": "text", "text": "Aa Bb Cc Dd Ee Ff Gg Hh Ii Jj Kk Ll Mm", "left": 40, "top": 440, "width": 680, "fontSize": 18, "fontFamily": font_b, "fill": INK_SOFT, "selectable": False},
+        {"type": "text", "text": tc.get("bodyDesc", ""), "left": 40, "top": 475, "width": 680, "fontSize": 12, "fontFamily": font_b, "fill": INK_SOFT, "selectable": False},
+    ]
+    return {"background": bg, "objects": objects, "aiSpec": True}
+
+
+def _make_rules_page(inp: dict, content: dict) -> dict:
+    p = inp.get("palette", {})
+    primary = p.get("primary", "#6366f1")
+    accent = p.get("accent", "#e94560")
+    bg = p.get("background", IVORY)
+    text_col = p.get("text", INK)
+    font_h = inp.get("fonts", {}).get("heading", "Georgia")
+    font_b = inp.get("fonts", {}).get("body", "Inter")
+    rules = content.get("rules", {})
+    dos = rules.get("dos", [])
+    donts = rules.get("donts", [])
+
+    objects = [
+        {"type": "rect", "left": 0, "top": 0, "width": A4_W, "height": A4_H, "fill": bg, "selectable": False},
+        {"type": "rect", "left": 0, "top": 0, "width": A4_W, "height": 80, "fill": primary, "selectable": False},
+        {"type": "text", "text": "BRAND RULES", "left": 40, "top": 25, "width": 600, "fontSize": 24, "fontFamily": font_h, "fontWeight": "bold", "fill": "#ffffff", "selectable": False},
+        {"type": "text", "text": "DO", "left": 60, "top": 110, "width": 300, "fontSize": 20, "fontFamily": font_h, "fontWeight": "bold", "fill": primary, "selectable": False},
+        {"type": "text", "text": "DON'T", "left": 420, "top": 110, "width": 300, "fontSize": 20, "fontFamily": font_h, "fontWeight": "bold", "fill": accent, "selectable": False},
+    ]
+
+    for i, rule in enumerate(dos[:5]):
+        y = 155 + i * 65
+        objects += [
+            {"type": "rect", "left": 40, "top": y, "width": 320, "height": 55, "fill": primary, "opacity": 0.08, "rx": 6, "selectable": False},
+            {"type": "text", "text": rule, "left": 55, "top": y + 10, "width": 295, "fontSize": 11, "fontFamily": font_b, "fill": text_col, "selectable": False},
+        ]
+
+    for i, rule in enumerate(donts[:5]):
+        y = 155 + i * 65
+        objects += [
+            {"type": "rect", "left": 400, "top": y, "width": 320, "height": 55, "fill": accent, "opacity": 0.08, "rx": 6, "selectable": False},
+            {"type": "text", "text": rule, "left": 415, "top": y + 10, "width": 295, "fontSize": 11, "fontFamily": font_b, "fill": text_col, "selectable": False},
+        ]
+
+    return {"background": bg, "objects": objects, "aiSpec": True}
+
+
+def generate_brand_book_pages(inp: dict) -> list:
+    content = _generate_book_content(inp)
+    pages = [
+        {"name": "Cover", "preset": "a4", "width": A4_W, "height": A4_H, "canvasData": _make_cover_page(inp, content)},
+        {"name": "Brand Overview", "preset": "a4", "width": A4_W, "height": A4_H, "canvasData": _make_overview_page(inp, content)},
+        {"name": "Logo System", "preset": "a4", "width": A4_W, "height": A4_H, "canvasData": _make_logo_page(inp, content)},
+        {"name": "Color Palette", "preset": "a4", "width": A4_W, "height": A4_H, "canvasData": _make_color_page(inp, content)},
+        {"name": "Typography", "preset": "a4", "width": A4_W, "height": A4_H, "canvasData": _make_typography_page(inp, content)},
+        {"name": "Brand Rules", "preset": "a4", "width": A4_W, "height": A4_H, "canvasData": _make_rules_page(inp, content)},
+    ]
+    return pages

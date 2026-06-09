@@ -747,6 +747,105 @@ def admin_delete_webhook(hook_id: str, user_id: str = Depends(require_admin)):
     return {"ok": True}
 
 
+# ── Monitoring ─────────────────────────────────────────────────────────────────
+
+@router.get("/monitoring")
+def admin_monitoring(user_id: str = Depends(require_admin)):
+    import time
+    import psutil
+    try:
+        with DB() as db:
+            db_ok = bool(db.fetchval("SELECT 1"))
+    except Exception:
+        db_ok = False
+
+    try:
+        cpu = psutil.cpu_percent(interval=0.2)
+        mem = psutil.virtual_memory()
+        disk = psutil.disk_usage("/")
+        system_stats = {
+            "cpuPercent": cpu,
+            "memoryUsedMb": round(mem.used / 1024 / 1024),
+            "memoryTotalMb": round(mem.total / 1024 / 1024),
+            "memoryPercent": mem.percent,
+            "diskUsedGb": round(disk.used / 1024 / 1024 / 1024, 1),
+            "diskTotalGb": round(disk.total / 1024 / 1024 / 1024, 1),
+            "diskPercent": disk.percent,
+        }
+    except Exception:
+        system_stats = {}
+
+    try:
+        with DB() as db:
+            total_users = db.fetchval("SELECT COUNT(*) FROM users") or 0
+            active_users_24h = db.fetchval(
+                "SELECT COUNT(DISTINCT user_id) FROM usage_events WHERE created_at >= NOW() - INTERVAL '24 hours'"
+            ) or 0
+            events_1h = db.fetchval(
+                "SELECT COUNT(*) FROM usage_events WHERE created_at >= NOW() - INTERVAL '1 hour'"
+            ) or 0
+            top_actions_rows = db.fetchall(
+                "SELECT action, COUNT(*) as count FROM usage_events WHERE created_at >= NOW() - INTERVAL '60 minutes' GROUP BY action ORDER BY count DESC LIMIT 10"
+            )
+            top_actions = [{"action": r.get("action", ""), "count": r.get("count", 0)} for r in (top_actions_rows or [])]
+            error_count = db.fetchval(
+                "SELECT COUNT(*) FROM usage_events WHERE action LIKE '%error%' AND created_at >= NOW() - INTERVAL '1 hour'"
+            ) or 0
+    except Exception:
+        total_users = 0
+        active_users_24h = 0
+        events_1h = 0
+        top_actions = []
+        error_count = 0
+
+    return {
+        "status": "ok" if db_ok else "degraded",
+        "database": {"ok": db_ok},
+        "system": system_stats,
+        "usage": {
+            "totalUsers": total_users,
+            "activeUsers24h": active_users_24h,
+            "eventsLast1h": events_1h,
+            "errorsLast1h": error_count,
+            "topActions": top_actions,
+        },
+        "timestamp": __import__("datetime").datetime.utcnow().isoformat() + "Z",
+    }
+
+
+# ── Workflows / User Funnel ─────────────────────────────────────────────────────
+
+@router.get("/workflows")
+def admin_workflows(user_id: str = Depends(require_admin)):
+    try:
+        with DB() as db:
+            total_users = db.fetchval("SELECT COUNT(*) FROM users") or 0
+            users_with_brand = db.fetchval("SELECT COUNT(DISTINCT user_id) FROM brands") or 0
+            users_with_kit = db.fetchval("SELECT COUNT(DISTINCT user_id) FROM brands WHERE brand_kit IS NOT NULL") or 0
+            users_with_campaign = db.fetchval("SELECT COUNT(DISTINCT user_id) FROM campaigns") or 0
+            users_with_post_image = db.fetchval(
+                "SELECT COUNT(DISTINCT c.user_id) FROM campaigns c JOIN posts p ON p.campaign_id = c.id WHERE p.image_url IS NOT NULL"
+            ) or 0
+            users_published = db.fetchval(
+                "SELECT COUNT(DISTINCT c.user_id) FROM campaigns c JOIN posts p ON p.campaign_id = c.id WHERE p.publish_status = 'published'"
+            ) or 0
+    except Exception:
+        total_users = users_with_brand = users_with_kit = users_with_campaign = users_with_post_image = users_published = 0
+
+    def _pct(n, total):
+        return round(n / total * 100, 1) if total else 0
+
+    funnel = [
+        {"step": "Registered", "users": total_users, "pct": 100.0},
+        {"step": "Created a Brand", "users": users_with_brand, "pct": _pct(users_with_brand, total_users)},
+        {"step": "Generated Brand Kit", "users": users_with_kit, "pct": _pct(users_with_kit, total_users)},
+        {"step": "Created Campaign", "users": users_with_campaign, "pct": _pct(users_with_campaign, total_users)},
+        {"step": "Generated Post Images", "users": users_with_post_image, "pct": _pct(users_with_post_image, total_users)},
+        {"step": "Published a Post", "users": users_published, "pct": _pct(users_published, total_users)},
+    ]
+    return {"funnel": funnel, "totalUsers": total_users}
+
+
 # ── Public Settings ────────────────────────────────────────────────────────────
 
 @public_router.get("/public-settings")

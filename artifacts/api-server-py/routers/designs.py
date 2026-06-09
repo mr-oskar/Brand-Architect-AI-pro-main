@@ -259,21 +259,92 @@ def design_ai_edit(body: AiEditBody, user_id: str = Depends(require_auth)):
 class NewPageBody(BaseModel):
     brandId: int
     name: Optional[str] = None
+    width: Optional[int] = 794
+    height: Optional[int] = 1123
+    preset: Optional[str] = "a4"
 
 
 @router.post("/designs/new-page")
 def new_page(body: NewPageBody, user_id: str = Depends(require_auth)):
     with DB() as db:
-        brand = db.fetchone("SELECT id FROM brands WHERE id = %s AND user_id = %s", (body.brandId, user_id))
+        brand = db.fetchone("SELECT id, brand_kit FROM brands WHERE id = %s AND user_id = %s", (body.brandId, user_id))
         if not brand:
             raise HTTPException(404, "Brand not found")
         count = db.fetchval("SELECT COUNT(*) FROM designs WHERE brand_id = %s AND user_id = %s", (body.brandId, user_id)) or 0
         name = body.name or f"Page {int(count) + 1}"
+        w = body.width or 794
+        h = body.height or 1123
+        preset = body.preset or "a4"
+        kit = brand.get("brandKit") or {}
+        palette = kit.get("colorPalette") or {}
+        background = palette.get("background", "#ffffff")
+        blank = {"aiSpec": True, "background": background, "objects": [
+            {"type": "rect", "left": 0, "top": 0, "width": w, "height": h, "fill": background, "opacity": 1}
+        ]}
         d = db.fetchone(
             """
-            INSERT INTO designs (brand_id, user_id, name, width, height, preset)
-            VALUES (%s, %s, %s, 794, 1123, 'a4') RETURNING *
+            INSERT INTO designs (brand_id, user_id, name, canvas_data, width, height, preset)
+            VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING *
             """,
-            (body.brandId, user_id, name),
+            (body.brandId, user_id, name, json.dumps(blank), w, h, preset),
         )
     return _format_design(d)
+
+
+class GenerateBrandBookBody(BaseModel):
+    brandId: int
+
+
+@router.post("/designs/generate-brand-book", status_code=201)
+def generate_brand_book(body: GenerateBrandBookBody, user_id: str = Depends(require_auth)):
+    from lib.ai import generate_brand_book_pages
+    try:
+        charge_credits(user_id, "design.generate-brand-book")
+    except InsufficientCreditsError:
+        raise HTTPException(402, "Insufficient credits")
+
+    with DB() as db:
+        brand = db.fetchone("SELECT * FROM brands WHERE id = %s AND user_id = %s", (body.brandId, user_id))
+        if not brand:
+            raise HTTPException(404, "Brand not found")
+        if not brand.get("brandKit"):
+            raise HTTPException(400, "Generate the brand kit first")
+
+        kit = brand.get("brandKit") or {}
+        variants = brand.get("logoVariants") or {}
+        palette = kit.get("colorPalette") or {}
+        taglines = kit.get("taglines") or []
+
+        pages = generate_brand_book_pages({
+            "companyName": brand.get("companyName", ""),
+            "industry": brand.get("industry", ""),
+            "tagline": taglines[0] if taglines else f"{brand.get('companyName', '')} — Excellence in {brand.get('industry', '')}",
+            "mission": kit.get("missionStatement"),
+            "personality": kit.get("personality") if isinstance(kit.get("personality"), list) else None,
+            "palette": {
+                "primary": palette.get("primary", "#6366f1"),
+                "secondary": palette.get("secondary", "#8b5cf6"),
+                "accent": palette.get("accent", "#e94560"),
+                "background": palette.get("background", "#FFFFF0"),
+                "text": palette.get("text", "#1a1a2e"),
+                "surface": palette.get("surface"),
+                "neutral": palette.get("neutral", "#6B7280"),
+            },
+            "fonts": {
+                "heading": (kit.get("typographyRecommendations") or {}).get("heading") or "Georgia",
+                "body": (kit.get("typographyRecommendations") or {}).get("body") or "Inter",
+            },
+            "logoUrl": brand.get("logoUrl"),
+            "logoVariants": variants,
+        })
+
+        inserted = []
+        for p in pages:
+            d = db.fetchone(
+                """INSERT INTO designs (brand_id, user_id, name, canvas_data, width, height, preset)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING *""",
+                (body.brandId, user_id, p["name"], json.dumps(p["canvasData"]), p["width"], p["height"], p["preset"]),
+            )
+            inserted.append(_format_design(d))
+
+    return {"designs": inserted}

@@ -502,6 +502,89 @@ def brand_list_campaigns(brand_id: int, user_id: str = Depends(require_auth)):
     return campaigns
 
 
+# ── Logo Variants ─────────────────────────────────────────────────────────────
+
+@router.post("/brands/{brand_id}/generate-logo-variants")
+def generate_logo_variants(brand_id: int, user_id: str = Depends(require_auth)):
+    import io
+    from PIL import Image, ImageOps
+    try:
+        charge_credits(user_id, "brand.generate-kit")
+    except InsufficientCreditsError:
+        raise HTTPException(402, "Insufficient credits")
+
+    with DB() as db:
+        brand = _get_brand(brand_id, user_id, db)
+
+    logo_url = brand.get("logoUrl") or ""
+    if not logo_url:
+        raise HTTPException(400, "Brand has no logo. Upload a logo first.")
+
+    import httpx
+    try:
+        resp = httpx.get(logo_url, timeout=15, follow_redirects=True)
+        resp.raise_for_status()
+        original_bytes = resp.content
+    except Exception as e:
+        raise HTTPException(500, f"Failed to download logo: {e}")
+
+    try:
+        img = Image.open(io.BytesIO(original_bytes)).convert("RGBA")
+    except Exception as e:
+        raise HTTPException(500, f"Failed to process logo image: {e}")
+
+    def _encode(pil_img: Image.Image) -> bytes:
+        buf = io.BytesIO()
+        pil_img.save(buf, format="PNG")
+        return buf.getvalue()
+
+    def _to_black(pil_img: Image.Image) -> Image.Image:
+        r, g, b, a = pil_img.split()
+        black = Image.new("L", pil_img.size, 0)
+        result = Image.merge("RGBA", (black, black, black, a))
+        return result
+
+    def _to_white(pil_img: Image.Image) -> Image.Image:
+        r, g, b, a = pil_img.split()
+        white = Image.new("L", pil_img.size, 255)
+        result = Image.merge("RGBA", (white, white, white, a))
+        return result
+
+    def _to_grayscale(pil_img: Image.Image) -> Image.Image:
+        gray = ImageOps.grayscale(pil_img)
+        gray_rgba = Image.merge("RGBA", (gray, gray, gray, pil_img.split()[3]))
+        return gray_rgba
+
+    original_path = upload_image_buffer(original_bytes, "image/png")
+    black_path = upload_image_buffer(_encode(_to_black(img)), "image/png")
+    white_path = upload_image_buffer(_encode(_to_white(img)), "image/png")
+    gray_path = upload_image_buffer(_encode(_to_grayscale(img)), "image/png")
+
+    variants = {
+        "original": original_path,
+        "black": black_path,
+        "white": white_path,
+        "grayscale": gray_path,
+    }
+
+    with DB() as db:
+        db.execute(
+            "UPDATE brands SET logo_variants = %s, updated_at = NOW() WHERE id = %s AND user_id = %s",
+            (json.dumps(variants), brand_id, user_id),
+        )
+        updated = _get_brand(brand_id, user_id, db)
+
+    def _resolve(path: str) -> str:
+        if is_storage_path(path):
+            return storage_path_to_url(path)
+        return path
+
+    return {
+        "logoVariants": {k: _resolve(v) for k, v in variants.items()},
+        "brand": _brand_row(updated),
+    }
+
+
 # ── Brand Stats ────────────────────────────────────────────────────────────────
 
 @router.get("/brands/{brand_id}/stats")
