@@ -1,0 +1,10 @@
+{
+  "$comment": "Source of truth for the bootstrap admin accounts. The seeder reads this file on every server start and: (1) creates the user if missing, (2) promotes the user to role='admin' if they exist with a different role. Passwords are ONLY used when creating a new user — existing users keep their current password. To override in production without committing secrets, set the env var ADMIN_BOOTSTRAP_FILE to point at a file outside the repo, or set ADMIN_EMAILS=email1,email2 + ADMIN_BOOTSTRAP_PASSWORD=... for inline ENV-only configuration.",
+  "admins": [
+    {
+      "email": "oskar1python@gmail.com",
+      "password": "ChangeMe!2026",
+      "name": "Owner"
+    }
+  ]
+}
