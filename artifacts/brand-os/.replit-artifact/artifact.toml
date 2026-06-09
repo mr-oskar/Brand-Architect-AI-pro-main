@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "AI Brand & Marketing OS"
+version = "1.0.0"
+id = "artifacts/brand-os"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18565
+
+[services.development]
+run = "pnpm --filter @workspace/brand-os run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/brand-os", "run", "build" ]
+publicDir = "artifacts/brand-os/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18565"
+BASE_PATH = "/"
