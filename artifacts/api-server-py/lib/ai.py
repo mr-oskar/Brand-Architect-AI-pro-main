@@ -571,14 +571,18 @@ def generate_image_with_references(
 
 
 def _generate_image_gemini(prompt: str, size: str = "1024x1024") -> bytes:
-    """Generate image using Gemini imagen via google-generativeai SDK."""
+    """Generate image using Imagen 3 via the new google-genai SDK."""
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=_GEMINI_API_KEY)
-        imagen = genai.ImageGenerationModel("imagen-3.0-generate-002")
-        result = imagen.generate_images(prompt=prompt, number_of_images=1)
-        if result.images:
-            return result.images[0]._image_bytes
+        from google import genai as google_genai
+        from google.genai import types as genai_types
+        client = google_genai.Client(api_key=_GEMINI_API_KEY)
+        response = client.models.generate_images(
+            model="imagen-3.0-generate-002",
+            prompt=prompt,
+            config=genai_types.GenerateImagesConfig(number_of_images=1),
+        )
+        if response.generated_images:
+            return response.generated_images[0].image.image_bytes
     except Exception as e:
         print(f"[gemini-image] Error: {e}")
     # Fallback: return a 1x1 transparent PNG
