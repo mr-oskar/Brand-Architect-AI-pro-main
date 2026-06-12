@@ -23,15 +23,22 @@ export default function MonitoringTab() {
   if (error && !data) return <ErrorBox message={error} onRetry={load} />;
   if (!data) return <Loading />;
 
-  const max = Math.max(1, ...data.series.map((s: any) => s.requests));
+  const series: any[] = data.series ?? [];
+  const last60s = data.last60s ?? { rps: 0, avgLatencyMs: 0, errorRate: 0, errors: 0 };
+  const process_ = data.process ?? { memory: { heapUsedMb: 0, heapTotalMb: 0, rssMb: 0 }, uptimeMs: 0, nodeVersion: "-", pid: 0 };
+  const db = data.db ?? { status: "unknown" };
+  const totals = data.totals ?? { requests: 0, errors: 0 };
+  const topStatus: [string, number][] = data.topStatus ?? [];
+  const topRoutes: [string, number][] = data.topRoutes ?? [];
+  const max = Math.max(1, ...series.map((s: any) => s.requests));
 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard icon={<Activity className="w-4 h-4" />} label="Requests / sec" value={data.last60s.rps.toFixed(2)} hint="last 60s" color="emerald" />
-        <StatCard icon={<Clock className="w-4 h-4" />} label="Avg latency" value={`${data.last60s.avgLatencyMs}ms`} hint="last 60s" color="blue" />
-        <StatCard icon={<AlertTriangle className="w-4 h-4" />} label="Error rate" value={`${data.last60s.errorRate}%`} hint={`${data.last60s.errors} errors`} color={data.last60s.errorRate > 1 ? "red" : "emerald"} />
-        <StatCard icon={<Cpu className="w-4 h-4" />} label="Heap used" value={`${data.process.memory.heapUsedMb} MB`} hint={`of ${data.process.memory.heapTotalMb} MB`} color="violet" />
+        <StatCard icon={<Activity className="w-4 h-4" />} label="Requests / sec" value={last60s.rps.toFixed(2)} hint="last 60s" color="emerald" />
+        <StatCard icon={<Clock className="w-4 h-4" />} label="Avg latency" value={`${last60s.avgLatencyMs}ms`} hint="last 60s" color="blue" />
+        <StatCard icon={<AlertTriangle className="w-4 h-4" />} label="Error rate" value={`${last60s.errorRate}%`} hint={`${last60s.errors} errors`} color={last60s.errorRate > 1 ? "red" : "emerald"} />
+        <StatCard icon={<Cpu className="w-4 h-4" />} label="Heap used" value={`${process_.memory.heapUsedMb} MB`} hint={`of ${process_.memory.heapTotalMb} MB`} color="violet" />
       </div>
 
       <div className="bg-card border border-border rounded-xl p-5">
@@ -42,7 +49,7 @@ export default function MonitoringTab() {
           </span>
         </div>
         <div className="flex items-end gap-px h-32">
-          {data.series.length ? data.series.map((s: any) => {
+          {series.length ? series.map((s: any) => {
             const h = (s.requests / max) * 100;
             const isErr = s.errors > 0;
             return <div key={s.ts} className={`flex-1 rounded-sm ${isErr ? "bg-red-500/70" : "bg-primary/70"}`} style={{ height: `${Math.max(2, h)}%` }} title={`${s.requests} req · ${s.avgLatencyMs}ms${isErr ? ` · ${s.errors} errors` : ""}`} />;
@@ -53,25 +60,25 @@ export default function MonitoringTab() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-card border border-border rounded-xl p-5">
           <p className="text-xs uppercase text-muted-foreground font-semibold mb-3">Process</p>
-          <Row label="Uptime" value={fmtUptime(data.process.uptimeMs)} />
-          <Row label="Node" value={data.process.nodeVersion} />
-          <Row label="PID" value={String(data.process.pid)} />
-          <Row label="RSS memory" value={`${data.process.memory.rssMb} MB`} />
-          <Row label="DB" value={<span className={data.db.status === "ok" ? "text-emerald-500" : "text-red-500"}><Database className="w-3 h-3 inline mr-1" />{data.db.status}</span>} />
-          <Row label="Total requests" value={data.totals.requests.toLocaleString()} />
-          <Row label="Total errors" value={data.totals.errors.toLocaleString()} />
+          <Row label="Uptime" value={fmtUptime(process_.uptimeMs)} />
+          <Row label="Node" value={process_.nodeVersion} />
+          <Row label="PID" value={String(process_.pid)} />
+          <Row label="RSS memory" value={`${process_.memory.rssMb} MB`} />
+          <Row label="DB" value={<span className={db.status === "ok" ? "text-emerald-500" : "text-red-500"}><Database className="w-3 h-3 inline mr-1" />{db.status}</span>} />
+          <Row label="Total requests" value={totals.requests.toLocaleString()} />
+          <Row label="Total errors" value={totals.errors.toLocaleString()} />
         </div>
         <div className="bg-card border border-border rounded-xl p-5">
           <p className="text-xs uppercase text-muted-foreground font-semibold mb-3">Status codes (5min)</p>
           <div className="space-y-1.5">
-            {data.topStatus.map(([code, count]: [string, number]) => (
+            {topStatus.map(([code, count]: [string, number]) => (
               <Row key={code} label={code} value={<span className={`font-mono ${+code >= 500 ? "text-red-500" : +code >= 400 ? "text-amber-500" : "text-emerald-500"}`}>{count}</span>} />
             ))}
-            {!data.topStatus.length && <p className="text-sm text-muted-foreground">No traffic</p>}
+            {!topStatus.length && <p className="text-sm text-muted-foreground">No traffic</p>}
           </div>
           <p className="text-xs uppercase text-muted-foreground font-semibold mt-4 mb-3">Hot routes (5min)</p>
           <div className="space-y-1">
-            {data.topRoutes.slice(0, 8).map(([route, count]: [string, number]) => (
+            {topRoutes.slice(0, 8).map(([route, count]: [string, number]) => (
               <div key={route} className="flex justify-between text-xs">
                 <span className="font-mono truncate max-w-[260px]">{route}</span>
                 <span className="font-mono text-muted-foreground">{count}</span>
