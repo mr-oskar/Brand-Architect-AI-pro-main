@@ -8,15 +8,31 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from lib.credits import InsufficientCreditsError
-from routers import health, auth, replit_auth, brands, campaigns, posts, dashboard, jobs, images, designs, nodes, admin, social
+from routers import health, auth, replit_auth, brands, campaigns, posts, dashboard, jobs, images, designs, nodes, admin, social, user as user_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("[api-server-py] Starting Python/FastAPI server...")
+    _run_migrations()
     _seed_admins_bg()
     yield
-    print("[api-server-py] Shutting down...")
+
+
+def _run_migrations():
+    def _run():
+        try:
+            from lib.db import DB
+            with DB() as db:
+                db.execute("""
+                    ALTER TABLE users
+                    ADD COLUMN IF NOT EXISTS preferences JSONB DEFAULT '{}'
+                """)
+            print("[migrations] OK")
+        except Exception as e:
+            print(f"[migrations] Warning: {e}")
+    import threading
+    threading.Thread(target=_run, daemon=True).start()
 
 
 def _seed_admins_bg():
@@ -105,6 +121,7 @@ app.include_router(nodes.router, prefix=PREFIX)
 app.include_router(admin.router, prefix=PREFIX)
 app.include_router(admin.public_router, prefix=PREFIX)
 app.include_router(social.router, prefix=PREFIX)
+app.include_router(user_router.router, prefix=PREFIX)
 
 
 @app.get("/")

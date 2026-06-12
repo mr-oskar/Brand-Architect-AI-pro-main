@@ -1,37 +1,41 @@
 import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Sparkles, PlusCircle, Menu, X,
-  Library, LayoutTemplate, ShieldCheck, ChevronRight, Bell, Moon, Sun, CalendarDays, LogOut, Workflow,
+  Library, LayoutTemplate, ShieldCheck, ChevronRight, Bell, Moon, Sun,
+  CalendarDays, LogOut, Workflow, Settings,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSiteSettings } from "@/contexts/SiteSettingsContext";
+import { useUserSettings } from "@/contexts/UserSettingsContext";
+import { t } from "@/lib/i18n";
 import { getGetDashboardSummaryQueryKey, getListBrandsQueryKey } from "@workspace/api-client-react";
+import UserSettingsPanel from "@/components/UserSettingsPanel";
 
-function buildNavSections(isAdmin: boolean, features: { analytics: boolean; templates: boolean; socialPublishing: boolean }) {
+function buildNavSections(isAdmin: boolean, features: { analytics: boolean; templates: boolean; socialPublishing: boolean }, lang: "ar" | "en") {
   const tools = [
-    { href: "/nodes", label: "Nodes", icon: Workflow },
-    { href: "/calendar", label: "Content Calendar", icon: CalendarDays },
-    { href: "/assets", label: "Asset Library", icon: Library },
+    { href: "/nodes", label: t(lang, "nodes"), icon: Workflow },
+    { href: "/calendar", label: t(lang, "contentCalendar"), icon: CalendarDays },
+    { href: "/assets", label: t(lang, "assetLibrary"), icon: Library },
   ];
-  if (features.templates !== false) tools.push({ href: "/templates", label: "Templates", icon: LayoutTemplate });
+  if (features.templates !== false) tools.push({ href: "/templates", label: t(lang, "templates"), icon: LayoutTemplate });
 
   const sections = [
     {
-      label: "Workspace",
+      label: t(lang, "workspace"),
       items: [
-        { href: "/", label: "Dashboard", icon: LayoutDashboard },
-        { href: "/brands/new", label: "New Brand", icon: PlusCircle },
+        { href: "/", label: t(lang, "dashboard"), icon: LayoutDashboard },
+        { href: "/brands/new", label: t(lang, "newBrand"), icon: PlusCircle },
       ],
     },
-    { label: "Tools", items: tools },
+    { label: t(lang, "tools"), items: tools },
   ];
   if (isAdmin) {
     sections.push({
-      label: "System",
-      items: [{ href: "/admin", label: "Admin Panel", icon: ShieldCheck }],
+      label: t(lang, "system"),
+      items: [{ href: "/admin", label: t(lang, "adminPanel"), icon: ShieldCheck }],
     });
   }
   return sections;
@@ -57,8 +61,11 @@ function usePrefetchCoreData() {
   }, [queryClient]);
 }
 
-function UserProfile() {
+function UserProfile({ onOpenSettings }: { onOpenSettings: () => void }) {
   const { user, signOut, refresh } = useAuth();
+  const { prefs } = useUserSettings();
+  const lang = prefs.language;
+
   if (!user) return null;
 
   const displayName = user.name || user.email.split("@")[0] || "User";
@@ -77,12 +84,20 @@ function UserProfile() {
           <p className="text-[12px] font-semibold text-sidebar-foreground leading-none truncate">{displayName}</p>
           <p className="text-[10px] text-sidebar-foreground/40 mt-0.5 truncate">{user.email}</p>
         </div>
+        {/* Settings button */}
+        <button
+          onClick={onOpenSettings}
+          title={t(lang, "settings")}
+          className="w-6 h-6 rounded-md flex items-center justify-center text-sidebar-foreground/40 hover:bg-sidebar-accent hover:text-primary transition-colors flex-shrink-0"
+        >
+          <Settings className="w-3.5 h-3.5" />
+        </button>
       </div>
 
       {/* Credits balance */}
       <button
         onClick={() => refresh()}
-        title="نقاطك المتاحة — اضغط للتحديث"
+        title={lang === "ar" ? "نقاطك المتاحة — اضغط للتحديث" : "Your credits — click to refresh"}
         className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg mb-2 transition-colors ${
           isAdmin
             ? "bg-emerald-500/10 hover:bg-emerald-500/15"
@@ -95,7 +110,7 @@ function UserProfile() {
           isAdmin ? "text-emerald-500" : lowCredits ? "text-amber-500" : "text-primary"
         }`}>
           <span className="text-sm">⚡</span>
-          {isAdmin ? "Unlimited" : `${credits.toLocaleString()} نقطة`}
+          {isAdmin ? t(lang, "unlimited") : `${credits.toLocaleString()} ${t(lang, "credits")}`}
         </span>
         {!isAdmin && (
           <span className="text-[9px] text-sidebar-foreground/40">credits</span>
@@ -107,7 +122,7 @@ function UserProfile() {
         className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] text-sidebar-foreground/50 hover:bg-red-500/10 hover:text-red-400 transition-colors group"
       >
         <LogOut className="w-3.5 h-3.5 group-hover:text-red-400" />
-        Sign Out
+        {t(lang, "signOut")}
       </button>
     </div>
   );
@@ -116,22 +131,20 @@ function UserProfile() {
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [darkMode, setDarkMode] = useState(() => document.documentElement.classList.contains("dark"));
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const { user } = useAuth();
   const { settings } = useSiteSettings();
+  const { prefs, setTheme } = useUserSettings();
+  const lang = prefs.language;
+  const isDark = document.documentElement.classList.contains("dark");
+
   const isAdmin = (user?.role ?? "") === "admin";
-  const navSections = buildNavSections(isAdmin, settings.features);
+  const navSections = buildNavSections(isAdmin, settings.features, lang);
   usePrefetchCoreData();
 
   function toggleDark() {
-    const html = document.documentElement;
-    if (html.classList.contains("dark")) {
-      html.classList.remove("dark");
-      setDarkMode(false);
-    } else {
-      html.classList.add("dark");
-      setDarkMode(true);
-    }
+    const next = isDark ? "light" : "dark";
+    setTheme(next);
   }
 
   return (
@@ -139,8 +152,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 flex flex-col transition-transform duration-200",
-          "bg-sidebar border-r border-sidebar-border",
+          "fixed inset-y-0 start-0 z-50 w-64 flex flex-col transition-transform duration-200",
+          "bg-sidebar border-e border-sidebar-border",
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
@@ -188,7 +201,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     >
                       <Icon className={cn("w-4 h-4 flex-shrink-0", active ? "text-primary" : "")} />
                       <span className="flex-1">{item.label}</span>
-                      {active && <ChevronRight className="w-3 h-3 text-primary/60" />}
+                      {active && <ChevronRight className={cn("w-3 h-3 text-primary/60", lang === "ar" ? "rotate-180" : "")} />}
                     </Link>
                   );
                 })}
@@ -203,15 +216,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             onClick={toggleDark}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors"
           >
-            {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            {darkMode ? "Light Mode" : "Dark Mode"}
+            {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            {isDark ? t(lang, "lightMode") : t(lang, "darkMode")}
           </button>
           <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors">
             <Bell className="w-4 h-4" />
-            Notifications
-            <span className="ml-auto w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">3</span>
+            {t(lang, "notifications")}
+            <span className="ms-auto w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">3</span>
           </button>
-          <UserProfile />
+          <UserProfile onOpenSettings={() => setSettingsOpen(true)} />
         </div>
       </aside>
 
@@ -224,7 +237,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Main content */}
-      <div className="flex-1 lg:ml-64 flex flex-col min-h-screen">
+      <div className="flex-1 lg:ms-64 flex flex-col min-h-screen">
         {/* Top bar - mobile */}
         <header className="lg:hidden h-14 border-b border-border flex items-center px-4 bg-background/95 backdrop-blur sticky top-0 z-30">
           <button
@@ -233,16 +246,25 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           >
             <Menu className="w-5 h-5" />
           </button>
-          <div className="flex items-center gap-2 ml-3">
+          <div className="flex items-center gap-2 ms-3">
             <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center">
               <Sparkles className="w-3 h-3 text-primary-foreground" />
             </div>
             <span className="font-bold text-sm text-foreground">{settings.siteName}</span>
           </div>
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="ms-auto text-foreground/60 hover:text-foreground"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
         </header>
 
         <main className="flex-1">{children}</main>
       </div>
+
+      {/* Settings Panel */}
+      <UserSettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { Loader2 } from "lucide-react";
 import Layout from "@/components/Layout";
 import { AuthProvider, useAuth, getAuthToken } from "@/contexts/AuthContext";
 import { SiteSettingsProvider, useSiteSettings } from "@/contexts/SiteSettingsContext";
+import { UserSettingsProvider } from "@/contexts/UserSettingsContext";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { Wrench } from "lucide-react";
 
@@ -157,9 +158,11 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <SiteSettingsProvider>
-            <TooltipProvider>
-              <RouterContent />
-            </TooltipProvider>
+            <UserSettingsProvider>
+              <TooltipProvider>
+                <RouterContent />
+              </TooltipProvider>
+            </UserSettingsProvider>
           </SiteSettingsProvider>
         </AuthProvider>
       </QueryClientProvider>
