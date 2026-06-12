@@ -53,8 +53,8 @@ def get_image_client() -> Optional[OpenAI]:
 
 
 if _USE_GEMINI:
-    TEXT_MODEL = os.environ.get("AI_TEXT_MODEL", "models/gemini-2.0-flash-lite")
-    IMAGE_MODEL = "imagen-3.0-generate-002"
+    TEXT_MODEL = os.environ.get("AI_TEXT_MODEL", "models/gemini-2.5-flash-lite")
+    IMAGE_MODEL = "imagen-4.0-fast-generate-001"
 else:
     TEXT_MODEL = os.environ.get("AI_TEXT_MODEL", "gpt-4o-mini")
     IMAGE_MODEL = "gpt-image-1"
@@ -571,36 +571,109 @@ def generate_image_with_references(
 
 
 def _generate_image_gemini(prompt: str, size: str = "1024x1024") -> bytes:
-    """Generate image using Imagen 3 via the new google-genai SDK."""
+    """Generate image using Imagen 4 via the new google-genai SDK."""
     try:
         from google import genai as google_genai
         from google.genai import types as genai_types
         client = google_genai.Client(api_key=_GEMINI_API_KEY)
-        response = client.models.generate_images(
-            model="imagen-3.0-generate-002",
-            prompt=prompt,
-            config=genai_types.GenerateImagesConfig(number_of_images=1),
-        )
-        if response.generated_images:
-            return response.generated_images[0].image.image_bytes
+        for model_name in ["imagen-4.0-fast-generate-001", "imagen-4.0-generate-001"]:
+            try:
+                response = client.models.generate_images(
+                    model=model_name,
+                    prompt=prompt,
+                    config=genai_types.GenerateImagesConfig(number_of_images=1),
+                )
+                if response.generated_images:
+                    print(f"[gemini-image] OK using {model_name}")
+                    return response.generated_images[0].image.image_bytes
+            except Exception as inner:
+                print(f"[gemini-image] {model_name} failed: {inner}")
     except Exception as e:
-        print(f"[gemini-image] Error: {e}")
-    # Fallback: return a 1x1 transparent PNG
-    import struct, zlib
-    def _png1x1():
-        sig = b'\x89PNG\r\n\x1a\n'
-        ihdr = struct.pack('>IIBBBBB', 1, 1, 8, 2, 0, 0, 0)
-        ihdr_chunk = b'IHDR' + ihdr
-        ihdr_crc = struct.pack('>I', zlib.crc32(ihdr_chunk))
-        idat_data = zlib.compress(b'\x00\x00\x00\x00')
-        idat_chunk = b'IDAT' + idat_data
-        idat_crc = struct.pack('>I', zlib.crc32(idat_chunk))
-        iend_crc = struct.pack('>I', zlib.crc32(b'IEND'))
-        return (sig +
-                struct.pack('>I', 13) + ihdr_chunk + ihdr_crc +
-                struct.pack('>I', len(idat_data)) + idat_chunk + idat_crc +
-                struct.pack('>I', 0) + b'IEND' + iend_crc)
-    return _png1x1()
+        print(f"[gemini-image] SDK error: {e}")
+    # Fallback: generate a branded placeholder image using PIL
+    return _make_placeholder_image(prompt, size)
+
+
+def _make_placeholder_image(prompt: str, size: str = "1024x1024") -> bytes:
+    """Create a visually appealing placeholder image using PIL when AI image generation is unavailable."""
+    import io, textwrap, hashlib
+    from PIL import Image, ImageDraw, ImageFont
+
+    # Parse size
+    try:
+        w, h = [int(x) for x in size.split("x")]
+    except Exception:
+        w, h = 1024, 1024
+
+    # Derive a consistent color palette from the prompt hash
+    seed = int(hashlib.md5(prompt.encode()).hexdigest()[:8], 16)
+    palettes = [
+        ("#1a1a2e", "#16213e", "#0f3460", "#e94560"),
+        ("#0d1117", "#161b22", "#21262d", "#58a6ff"),
+        ("#0f0c29", "#302b63", "#24243e", "#a855f7"),
+        ("#0f2027", "#203a43", "#2c5364", "#00b4d8"),
+        ("#1b1b2f", "#2e2e4e", "#4a4a7a", "#f5a623"),
+        ("#0a192f", "#112240", "#1d3557", "#64ffda"),
+    ]
+    bg1, bg2, bg3, accent = palettes[seed % len(palettes)]
+
+    img = Image.new("RGB", (w, h), bg1)
+    draw = ImageDraw.Draw(img)
+
+    # Gradient-like background with rectangles
+    for i in range(h):
+        ratio = i / h
+        r1, g1, b1 = tuple(int(bg1.lstrip("#")[j:j+2], 16) for j in (0, 2, 4))
+        r2, g2, b2 = tuple(int(bg2.lstrip("#")[j:j+2], 16) for j in (0, 2, 4))
+        r = int(r1 + (r2 - r1) * ratio)
+        g = int(g1 + (g2 - g1) * ratio)
+        b = int(b1 + (b2 - b1) * ratio)
+        draw.line([(0, i), (w, i)], fill=(r, g, b))
+
+    # Decorative circles
+    acc_r, acc_g, acc_b = tuple(int(accent.lstrip("#")[j:j+2], 16) for j in (0, 2, 4))
+    draw.ellipse([-w//4, -h//4, w//2, h//2], fill=(acc_r, acc_g, acc_b, 30) if img.mode == "RGBA" else bg3)
+    draw.ellipse([w//2, h//2, w + w//4, h + h//4], fill=bg3)
+
+    # Accent bar at top
+    draw.rectangle([0, 0, w, max(6, h // 80)], fill=accent)
+
+    # AI icon placeholder text
+    try:
+        font_big = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", max(40, w // 20))
+        font_mid = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", max(22, w // 40))
+        font_sm  = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", max(16, w // 60))
+    except Exception:
+        font_big = font_mid = font_sm = ImageFont.load_default()
+
+    # "AI IMAGE" badge
+    badge_text = "✦ AI IMAGE"
+    bbox = draw.textbbox((0, 0), badge_text, font=font_mid)
+    bw, bh = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    bx, by = (w - bw) // 2, h // 4
+    draw.rounded_rectangle([bx - 16, by - 8, bx + bw + 16, by + bh + 8], radius=6, fill=accent)
+    draw.text((bx, by), badge_text, fill="#ffffff", font=font_mid)
+
+    # Prompt text wrapped
+    wrapped = textwrap.fill(prompt[:200], width=max(30, w // (max(40, w // 20) // 2)))
+    lines = wrapped.split("\n")[:6]
+    total_h = len(lines) * (max(40, w // 20) + 8)
+    ty = (h - total_h) // 2 + h // 12
+    for line in lines:
+        bbox = draw.textbbox((0, 0), line, font=font_big)
+        lw = bbox[2] - bbox[0]
+        draw.text(((w - lw) // 2, ty), line, fill="#ffffff", font=font_big)
+        ty += max(40, w // 20) + 8
+
+    # Bottom note
+    note = "Image generation requires a paid Gemini plan"
+    bbox = draw.textbbox((0, 0), note, font=font_sm)
+    nw = bbox[2] - bbox[0]
+    draw.text(((w - nw) // 2, h - max(50, h // 14)), note, fill=accent, font=font_sm)
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
 
 
 def generate_post_image(
