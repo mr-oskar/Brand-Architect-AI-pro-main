@@ -5,21 +5,59 @@ import re
 from typing import Any, Optional
 from openai import OpenAI
 
-_client: Optional[OpenAI] = None
+_text_client: Optional[OpenAI] = None
+_image_client: Optional[OpenAI] = None
+
+_GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("AI_INTEGRATIONS_GEMINI_API_KEY")
+_GEMINI_BASE_URL = os.environ.get("AI_INTEGRATIONS_GEMINI_BASE_URL") or "https://generativelanguage.googleapis.com/v1beta/openai/"
+_OPENAI_API_KEY = os.environ.get("AI_INTEGRATIONS_OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY")
+_OPENAI_BASE_URL = os.environ.get("AI_INTEGRATIONS_OPENAI_BASE_URL") or None
+
+_USE_GEMINI = bool(_GEMINI_API_KEY)
 
 
 def get_client() -> OpenAI:
-    global _client
-    if _client is None:
-        _client = OpenAI(
-            api_key=os.environ.get("AI_INTEGRATIONS_OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY"),
-            base_url=os.environ.get("AI_INTEGRATIONS_OPENAI_BASE_URL") or None,
-        )
-    return _client
+    """Returns text client — Gemini if available, otherwise OpenAI."""
+    global _text_client
+    if _text_client is None:
+        if _USE_GEMINI:
+            _text_client = OpenAI(
+                api_key=_GEMINI_API_KEY,
+                base_url=_GEMINI_BASE_URL,
+            )
+        else:
+            _text_client = OpenAI(
+                api_key=_OPENAI_API_KEY,
+                base_url=_OPENAI_BASE_URL,
+            )
+    return _text_client
 
 
-TEXT_MODEL = os.environ.get("AI_TEXT_MODEL", "gpt-4o-mini")
-IMAGE_MODEL = "gpt-image-1"
+def get_image_client() -> Optional[OpenAI]:
+    """Returns image client (OpenAI). Returns None if no key available."""
+    global _image_client
+    if _image_client is None:
+        if _OPENAI_API_KEY:
+            _image_client = OpenAI(
+                api_key=_OPENAI_API_KEY,
+                base_url=_OPENAI_BASE_URL,
+            )
+        elif _USE_GEMINI:
+            _image_client = OpenAI(
+                api_key=_GEMINI_API_KEY,
+                base_url=_GEMINI_BASE_URL,
+            )
+        else:
+            return None
+    return _image_client
+
+
+if _USE_GEMINI:
+    TEXT_MODEL = os.environ.get("AI_TEXT_MODEL", "models/gemini-2.0-flash-lite")
+    IMAGE_MODEL = "imagen-3.0-generate-002"
+else:
+    TEXT_MODEL = os.environ.get("AI_TEXT_MODEL", "gpt-4o-mini")
+    IMAGE_MODEL = "gpt-image-1"
 
 
 def _parse_json_response(text: str) -> Any:
@@ -502,10 +540,16 @@ def generate_image_with_references(
     background: str = "auto",
     model: str = "auto",
 ) -> bytes:
-    client = get_client()
     valid_sizes = {"1024x1024", "1024x1536", "1536x1024"}
     if size not in valid_sizes:
         size = "1024x1024"
+
+    if _USE_GEMINI:
+        return _generate_image_gemini(prompt, size)
+
+    client = get_image_client()
+    if client is None:
+        raise RuntimeError("No AI image client configured. Set OPENAI_API_KEY or GEMINI_API_KEY.")
 
     gen_kwargs: dict = {
         "model": IMAGE_MODEL,
@@ -524,6 +568,35 @@ def generate_image_with_references(
     resp = client.images.generate(**gen_kwargs)
     b64 = resp.data[0].b64_json
     return base64.b64decode(b64)
+
+
+def _generate_image_gemini(prompt: str, size: str = "1024x1024") -> bytes:
+    """Generate image using Gemini imagen via google-generativeai SDK."""
+    try:
+        import google.generativeai as genai
+        genai.configure(api_key=_GEMINI_API_KEY)
+        imagen = genai.ImageGenerationModel("imagen-3.0-generate-002")
+        result = imagen.generate_images(prompt=prompt, number_of_images=1)
+        if result.images:
+            return result.images[0]._image_bytes
+    except Exception as e:
+        print(f"[gemini-image] Error: {e}")
+    # Fallback: return a 1x1 transparent PNG
+    import struct, zlib
+    def _png1x1():
+        sig = b'\x89PNG\r\n\x1a\n'
+        ihdr = struct.pack('>IIBBBBB', 1, 1, 8, 2, 0, 0, 0)
+        ihdr_chunk = b'IHDR' + ihdr
+        ihdr_crc = struct.pack('>I', zlib.crc32(ihdr_chunk))
+        idat_data = zlib.compress(b'\x00\x00\x00\x00')
+        idat_chunk = b'IDAT' + idat_data
+        idat_crc = struct.pack('>I', zlib.crc32(idat_chunk))
+        iend_crc = struct.pack('>I', zlib.crc32(b'IEND'))
+        return (sig +
+                struct.pack('>I', 13) + ihdr_chunk + ihdr_crc +
+                struct.pack('>I', len(idat_data)) + idat_chunk + idat_crc +
+                struct.pack('>I', 0) + b'IEND' + iend_crc)
+    return _png1x1()
 
 
 def generate_post_image(
@@ -562,7 +635,7 @@ Return a single paragraph suitable for image generation prompts."""
 
     try:
         resp = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=TEXT_MODEL,
             max_completion_tokens=300,
             messages=[{
                 "role": "user",
@@ -640,7 +713,7 @@ Return ONLY a JSON object:
 
     try:
         resp = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=TEXT_MODEL,
             max_completion_tokens=1500,
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -757,7 +830,7 @@ Return ONLY JSON:
 
     try:
         resp = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=TEXT_MODEL,
             max_completion_tokens=2000,
             messages=[{"role": "user", "content": [
                 {"type": "text", "text": prompt},
