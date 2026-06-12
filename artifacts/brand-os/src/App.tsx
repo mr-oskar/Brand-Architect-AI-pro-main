@@ -27,6 +27,7 @@ const Assets = lazy(() => import("@/pages/Assets"));
 const Templates = lazy(() => import("@/pages/Templates"));
 const Admin = lazy(() => import("@/pages/Admin"));
 const NodesEditor = lazy(() => import("@/pages/NodesEditor"));
+const Notifications = lazy(() => import("@/pages/Notifications"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 const LandingPage = lazy(() => import("@/pages/LandingPage"));
 const SignIn = lazy(() => import("@/pages/SignIn"));
@@ -99,6 +100,7 @@ function ProtectedAppShell() {
                 <Route path="/calendar" component={ContentCalendar} />
                 <Route path="/assets" component={Assets} />
                 <Route path="/templates" component={Templates} />
+                <Route path="/notifications" component={Notifications} />
                 <Route path="/admin" component={Admin} />
                 <Route component={NotFound} />
               </Switch>

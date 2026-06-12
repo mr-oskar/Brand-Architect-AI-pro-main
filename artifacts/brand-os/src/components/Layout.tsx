@@ -3,9 +3,8 @@ import {
   LayoutDashboard, Sparkles, PlusCircle, Menu, X,
   Library, LayoutTemplate, ShieldCheck, ChevronRight, Bell,
   CalendarDays, LogOut, Workflow, Settings,
-  CheckCheck, Megaphone, Building2, Zap, Info,
 } from "lucide-react";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,14 +13,15 @@ import { useUserSettings } from "@/contexts/UserSettingsContext";
 import { t } from "@/lib/i18n";
 import { getGetDashboardSummaryQueryKey, getListBrandsQueryKey } from "@workspace/api-client-react";
 import UserSettingsPanel from "@/components/UserSettingsPanel";
+import { NOTIFICATIONS, getReadIds } from "@/lib/notifications";
 
-// ── Nav ────────────────────────────────────────────────────────────────────────
+// ── Nav ───────────────────────────────────────────────────────────────────────
 
 function buildNavSections(isAdmin: boolean, features: { analytics: boolean; templates: boolean; socialPublishing: boolean }, lang: "ar" | "en") {
   const tools = [
-    { href: "/nodes",     label: t(lang, "nodes"),           icon: Workflow },
-    { href: "/calendar",  label: t(lang, "contentCalendar"), icon: CalendarDays },
-    { href: "/assets",    label: t(lang, "assetLibrary"),    icon: Library },
+    { href: "/nodes",    label: t(lang, "nodes"),           icon: Workflow },
+    { href: "/calendar", label: t(lang, "contentCalendar"), icon: CalendarDays },
+    { href: "/assets",   label: t(lang, "assetLibrary"),    icon: Library },
   ];
   if (features.templates !== false) tools.push({ href: "/templates", label: t(lang, "templates"), icon: LayoutTemplate });
 
@@ -44,7 +44,7 @@ function buildNavSections(isAdmin: boolean, features: { analytics: boolean; temp
   return sections;
 }
 
-// ── Prefetch ───────────────────────────────────────────────────────────────────
+// ── Prefetch ──────────────────────────────────────────────────────────────────
 
 function usePrefetchCoreData() {
   const queryClient = useQueryClient();
@@ -62,161 +62,7 @@ function usePrefetchCoreData() {
   }, [queryClient]);
 }
 
-// ── Notifications ──────────────────────────────────────────────────────────────
-
-interface Notif {
-  id: string;
-  icon: React.ElementType;
-  color: string;
-  titleAr: string;
-  titleEn: string;
-  bodyAr: string;
-  bodyEn: string;
-  time: string;
-}
-
-const STATIC_NOTIFS: Notif[] = [
-  {
-    id: "n1",
-    icon: Sparkles,
-    color: "text-primary",
-    titleAr: "مرحباً بك في المنصة",
-    titleEn: "Welcome to the platform",
-    bodyAr: "ابدأ بإنشاء علامتك التجارية الأولى وتجربة قوة الذكاء الاصطناعي.",
-    bodyEn: "Start by creating your first brand and experience the power of AI.",
-    time: "now",
-  },
-  {
-    id: "n2",
-    icon: Zap,
-    color: "text-amber-500",
-    titleAr: "نصيحة: محرر العقد",
-    titleEn: "Tip: Nodes Editor",
-    bodyAr: "يمكنك دمج الصور والنصوص وتوليد صور احترافية بالذكاء الاصطناعي.",
-    bodyEn: "Combine images and prompts to generate professional AI images.",
-    time: "1h",
-  },
-  {
-    id: "n3",
-    icon: Building2,
-    color: "text-cyan-500",
-    titleAr: "جاهز لبناء هويتك؟",
-    titleEn: "Ready to build your identity?",
-    bodyAr: "أضف شعارك وألوانك وسيُنشئ الذكاء الاصطناعي هويتك البصرية الكاملة.",
-    bodyEn: "Add your logo and colors and AI will build your complete visual identity.",
-    time: "2h",
-  },
-  {
-    id: "n4",
-    icon: Megaphone,
-    color: "text-violet-500",
-    titleAr: "الحملات التسويقية",
-    titleEn: "Marketing Campaigns",
-    bodyAr: "جرّب توليد حملة تسويقية متعددة الأيام لأي علامة تجارية.",
-    bodyEn: "Try generating a multi-day marketing campaign for any brand.",
-    time: "5h",
-  },
-  {
-    id: "n5",
-    icon: Info,
-    color: "text-muted-foreground",
-    titleAr: "تحديث النظام",
-    titleEn: "System Update",
-    bodyAr: "تم تحديث المنصة بميزات جديدة. استكشف التحسينات الجديدة.",
-    bodyEn: "The platform has been updated with new features. Explore the improvements.",
-    time: "1d",
-  },
-];
-
-function NOTIF_STORAGE_KEY(userId: string) { return `notifs_read_${userId}`; }
-
-function NotificationsPanel({ lang, userId }: { lang: "ar" | "en"; userId: string }) {
-  const [read, setRead] = useState<Set<string>>(() => {
-    try { return new Set(JSON.parse(localStorage.getItem(NOTIF_STORAGE_KEY(userId)) ?? "[]")); }
-    catch { return new Set(); }
-  });
-
-  function markAllRead() {
-    const all = new Set(STATIC_NOTIFS.map(n => n.id));
-    setRead(all);
-    try { localStorage.setItem(NOTIF_STORAGE_KEY(userId), JSON.stringify([...all])); } catch {}
-  }
-
-  function markOne(id: string) {
-    const next = new Set(read);
-    next.add(id);
-    setRead(next);
-    try { localStorage.setItem(NOTIF_STORAGE_KEY(userId), JSON.stringify([...next])); } catch {}
-  }
-
-  const unread = STATIC_NOTIFS.filter(n => !read.has(n.id));
-
-  return (
-    <div className="absolute end-0 top-full mt-2 w-80 bg-[#0f1117] border border-border rounded-2xl shadow-2xl z-50 overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-bold text-foreground">{t(lang, "notifications")}</h3>
-          {unread.length > 0 && (
-            <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
-              {unread.length}
-            </span>
-          )}
-        </div>
-        {unread.length > 0 && (
-          <button
-            onClick={markAllRead}
-            className="flex items-center gap-1 text-[11px] text-primary hover:text-primary/80 transition-colors"
-          >
-            <CheckCheck className="w-3.5 h-3.5" />
-            {lang === "ar" ? "تحديد الكل كمقروء" : "Mark all read"}
-          </button>
-        )}
-      </div>
-
-      {/* List */}
-      <div className="max-h-80 overflow-y-auto divide-y divide-border/40">
-        {STATIC_NOTIFS.map((n) => {
-          const Icon = n.icon;
-          const isRead = read.has(n.id);
-          return (
-            <button
-              key={n.id}
-              onClick={() => markOne(n.id)}
-              className={cn(
-                "w-full flex items-start gap-3 px-4 py-3 text-start hover:bg-accent/50 transition-colors",
-                !isRead && "bg-primary/5"
-              )}
-            >
-              <div className={cn("w-8 h-8 rounded-lg bg-muted flex items-center justify-center flex-shrink-0 mt-0.5", isRead ? "opacity-50" : "")}>
-                <Icon className={cn("w-4 h-4", n.color)} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className={cn("text-xs font-semibold text-foreground", isRead && "text-muted-foreground")}>
-                  {lang === "ar" ? n.titleAr : n.titleEn}
-                </p>
-                <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">
-                  {lang === "ar" ? n.bodyAr : n.bodyEn}
-                </p>
-                <p className="text-[10px] text-muted-foreground/50 mt-1">{n.time}</p>
-              </div>
-              {!isRead && <div className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0 mt-2" />}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Footer */}
-      <div className="px-4 py-3 border-t border-border text-center">
-        <p className="text-[11px] text-muted-foreground">
-          {lang === "ar" ? "إشعارات النظام فقط في هذه المرحلة" : "System notifications only at this stage"}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// ── UserProfile ────────────────────────────────────────────────────────────────
+// ── UserProfile ───────────────────────────────────────────────────────────────
 
 function UserProfile({ onOpenSettings }: { onOpenSettings: () => void }) {
   const { user, signOut, refresh } = useAuth();
@@ -250,7 +96,6 @@ function UserProfile({ onOpenSettings }: { onOpenSettings: () => void }) {
         </button>
       </div>
 
-      {/* Credits balance */}
       <button
         onClick={() => refresh()}
         title={lang === "ar" ? "نقاطك المتاحة — اضغط للتحديث" : "Your credits — click to refresh"}
@@ -271,7 +116,7 @@ function UserProfile({ onOpenSettings }: { onOpenSettings: () => void }) {
       </button>
 
       <button
-        onClick={() => { signOut(); }}
+        onClick={() => signOut()}
         className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] text-sidebar-foreground/50 hover:bg-red-500/10 hover:text-red-400 transition-colors group"
       >
         <LogOut className="w-3.5 h-3.5 group-hover:text-red-400" />
@@ -281,14 +126,12 @@ function UserProfile({ onOpenSettings }: { onOpenSettings: () => void }) {
   );
 }
 
-// ── Main Layout ────────────────────────────────────────────────────────────────
+// ── Main Layout ───────────────────────────────────────────────────────────────
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
-  const notifRef = useRef<HTMLDivElement>(null);
 
   const { user } = useAuth();
   const { settings } = useSiteSettings();
@@ -299,26 +142,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const navSections = buildNavSections(isAdmin, settings.features, lang);
   usePrefetchCoreData();
 
-  // Close notif panel on outside click
-  const handleOutsideClick = useCallback((e: MouseEvent) => {
-    if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
-      setNotifOpen(false);
-    }
-  }, []);
+  // Unread count
+  const unreadCount = user
+    ? NOTIFICATIONS.filter(n => !getReadIds(user.id).has(n.id)).length
+    : 0;
 
-  useEffect(() => {
-    if (notifOpen) document.addEventListener("mousedown", handleOutsideClick);
-    else document.removeEventListener("mousedown", handleOutsideClick);
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, [notifOpen, handleOutsideClick]);
-
-  // Unread count from localStorage
-  const readIds: Set<string> = (() => {
-    if (!user) return new Set();
-    try { return new Set(JSON.parse(localStorage.getItem(NOTIF_STORAGE_KEY(user.id)) ?? "[]")); }
-    catch { return new Set(); }
-  })();
-  const unreadCount = STATIC_NOTIFS.filter(n => !readIds.has(n.id)).length;
+  const notifActive = location === "/notifications";
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -387,28 +216,28 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        {/* Footer: notifications + user */}
+        {/* Footer */}
         <div className="px-3 py-4 border-t border-sidebar-border space-y-1">
-          {/* Notifications button */}
-          <div ref={notifRef} className="relative">
-            <button
-              onClick={() => setNotifOpen(v => !v)}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors"
-            >
-              <Bell className="w-4 h-4" />
-              {t(lang, "notifications")}
-              {unreadCount > 0 && (
-                <span className="ms-auto w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
-                  {unreadCount}
-                </span>
-              )}
-            </button>
-
-            {/* Dropdown panel */}
-            {notifOpen && user && (
-              <NotificationsPanel lang={lang} userId={user.id} />
+          {/* Notifications — link to dedicated page */}
+          <Link
+            href="/notifications"
+            onClick={() => setMobileOpen(false)}
+            className={cn(
+              "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all",
+              notifActive
+                ? "bg-primary/10 text-primary"
+                : "text-sidebar-foreground/65 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
             )}
-          </div>
+          >
+            <Bell className={cn("w-4 h-4", notifActive ? "text-primary" : "")} />
+            <span className="flex-1">{t(lang, "notifications")}</span>
+            {unreadCount > 0 && (
+              <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
+                {unreadCount}
+              </span>
+            )}
+            {notifActive && <ChevronRight className={cn("w-3 h-3 text-primary/60", lang === "ar" ? "rotate-180" : "")} />}
+          </Link>
 
           <UserProfile onOpenSettings={() => setSettingsOpen(true)} />
         </div>
