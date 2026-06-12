@@ -67,9 +67,13 @@ function applyToDOM(s: SiteSettings) {
   try {
     document.title = s.siteName || "Brand Architect AI Pro";
     const html = document.documentElement;
-    const lang = s.defaultLanguage || "ar";
-    html.setAttribute("lang", lang);
-    html.setAttribute("dir", lang === "ar" ? "rtl" : "ltr");
+    // lang/dir are owned by UserSettingsContext — only set if no user pref cached
+    const hasUserPref = !!Object.keys(JSON.parse(localStorage.getItem("brand_os_auth_token") ? "{}" : "{}") || {}).length;
+    if (!document.documentElement.hasAttribute("data-user-lang")) {
+      const lang = s.defaultLanguage || "ar";
+      html.setAttribute("lang", lang);
+      html.setAttribute("dir", lang === "ar" ? "rtl" : "ltr");
+    }
     const hsl = hexToHsl(s.primaryColor);
     if (hsl) {
       html.style.setProperty("--primary", hsl);

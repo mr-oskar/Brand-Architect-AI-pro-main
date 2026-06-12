@@ -154,7 +154,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         className={cn(
           "fixed inset-y-0 start-0 z-50 w-64 flex flex-col transition-transform duration-200",
           "bg-sidebar border-e border-sidebar-border",
-          mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          mobileOpen
+            ? "translate-x-0"
+            : lang === "ar"
+            ? "translate-x-full lg:translate-x-0"
+            : "-translate-x-full lg:translate-x-0"
         )}
       >
         {/* Logo */}

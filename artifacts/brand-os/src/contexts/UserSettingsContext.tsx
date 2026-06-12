@@ -56,6 +56,8 @@ function applyPrefsToDOM(prefs: UserPreferences) {
   const lang = prefs.language ?? "ar";
   html.setAttribute("lang", lang);
   html.setAttribute("dir", lang === "ar" ? "rtl" : "ltr");
+  // Mark that user lang is active so SiteSettingsContext won't override
+  html.setAttribute("data-user-lang", lang);
 
   const theme = prefs.theme ?? "dark";
   if (theme === "system") {
