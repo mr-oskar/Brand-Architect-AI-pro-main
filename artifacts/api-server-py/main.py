@@ -8,7 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from lib.credits import InsufficientCreditsError
-from routers import health, auth, replit_auth, brands, campaigns, posts, dashboard, jobs, images, designs, nodes, admin, social, user as user_router
+from routers import health, auth, replit_auth, brands, campaigns, posts, dashboard, jobs, images, designs, nodes, admin, social, user as user_router, agent as agent_router
 
 
 @asynccontextmanager
@@ -122,6 +122,7 @@ app.include_router(admin.router, prefix=PREFIX)
 app.include_router(admin.public_router, prefix=PREFIX)
 app.include_router(social.router, prefix=PREFIX)
 app.include_router(user_router.router, prefix=PREFIX)
+app.include_router(agent_router.router, prefix=PREFIX)
 
 
 @app.get("/")

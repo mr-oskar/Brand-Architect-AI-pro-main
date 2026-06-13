@@ -78,7 +78,7 @@ export default function Dashboard() {
     const val = prompt.trim();
     if (!val) return;
     sessionStorage.setItem("brand_wizard_prompt", val);
-    navigate("/brands/new");
+    navigate("/workspace");
   }
 
   function handleSuggestion(s: string) {
@@ -263,7 +263,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
 
           {/* New Project card */}
-          <Link href="/brands/new">
+          <Link href="/workspace">
             <div className="group cursor-pointer">
               <div className="aspect-[4/3] rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-2.5 hover:border-primary/50 hover:bg-primary/5 transition-all">
                 <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center group-hover:bg-primary/10 transition-colors">
