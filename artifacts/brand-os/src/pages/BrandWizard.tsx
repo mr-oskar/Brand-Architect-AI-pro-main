@@ -36,15 +36,19 @@ export default function BrandWizard() {
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
   const [step, setStep] = useState(1);
-  const [form, setForm] = useState({
-    companyName: "",
-    companyDescription: "",
-    industry: "",
-    websiteUrl: "",
-    logoUrl: "",
-    targetAudience: "",
-    brandValues: "",
-    tonePreference: "",
+  const [form, setForm] = useState(() => {
+    const prefill = sessionStorage.getItem("brand_wizard_prompt") ?? "";
+    if (prefill) sessionStorage.removeItem("brand_wizard_prompt");
+    return {
+      companyName: "",
+      companyDescription: prefill,
+      industry: "",
+      websiteUrl: "",
+      logoUrl: "",
+      targetAudience: "",
+      brandValues: "",
+      tonePreference: "",
+    };
   });
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [extractedColors, setExtractedColors] = useState<string[]>([]);
